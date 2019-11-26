@@ -6,7 +6,56 @@ from cartography.intel.gcp import compute
 from cartography.util import run_cleanup_job
 logger = logging.getLogger(__name__)
 
+def get_gcp_bucket_iam_policy(storage, bucket):
+    """
+    Retrieves IAM policy about the given bucket.
+    
+    :type storage: A storage resource object
+    :param storage: The storage resource object created by googleapiclient.discovery.build()
+    
+    :type bucket: str
+    :param bucket: Google Cloud Bucket name
+    
+    :rtype: IAM Policy Object 
+    :return: IAM Policy for specified bucket
+    """
+    try:
+        req = storage.buckets().getIamPolicy(bucket=bucket)
+        res = req.execute()
+        return res
+    except HttpError as e:
+        reason = compute._get_error_reason(e)
+        if reason == 'notFound':
+            logger.debug(
+                ("The bucket %s was not found - returned a 404 not found error."
+                 "Full details: %s"), bucket, e, )
+            return None
+        elif reason == 'forbidden':
+            logger.debug(
+                ("You do not have storage.bucket.getIamPolicy access to the bucket %s. "
+                 "Full details: %s"), bucket, e, )
+            return None
+        else:
+            raise
+            
 
+def transform_gcp_bucket_iam_policy(iam_res): 
+    '''
+    Transform the GCP Storage Bucket IAM Policy Resource for Neo4j Ingestion. 
+    
+    :type iam_res: IAM Policy Object 
+    :param iam_res: The IAM Policy Resource associated with a GCP Bucket 
+    
+    :rtype: list of dict
+    :return: List of roles and members corresponding to some storage bucket
+    '''
+    
+    iam_list = [] 
+    resource_id = iam_res['resourceId']
+    bucket_id = resource_id.split('/')[-1] #resourceId is in the form 'projects/_/buckets/bucket_id' 
+    
+    
+            
 def get_gcp_buckets(storage, project_id):
     """
     Returns a list of storage objects within some given project
@@ -54,7 +103,7 @@ def transform_gcp_buckets(bucket_res):
     :type bucket_res: The GCP storage resource object (https://cloud.google.com/storage/docs/json_api/v1/buckets)
     :param bucket_res: The return data
 
-    :rtype: list
+    :rtype: list of dict
     :return: List of buckets ready for ingestion to Neo4j
     '''
 
